@@ -1,1126 +1,836 @@
-// Love Calculator & Match Meter
-// Expo Snack ready: is poori file ko App.js me paste karo.
-// SDK-neutral: koi version pin nahi hai. Snack me wahi SDK chuno jo tumhare Expo Go se match kare.
-// Dependencies (sab Expo Go ke saath bundled hain):
-//   expo-linear-gradient, expo-haptics, @expo/vector-icons, react-native-safe-area-context
-
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Keyboard,
-  KeyboardAvoidingView,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-/* -------------------------------------------------------------------------- */
-/*  Theme tokens                                                              */
-/* -------------------------------------------------------------------------- */
-
-const C = {
-  bgTop: '#12032A',
-  bgMid: '#2A0B4D',
-  bgBottom: '#4B0F62',
-  pink: '#FF3D9A',
-  hotPink: '#FF7BC8',
-  violet: '#A855F7',
-  text: '#FCEBFF',
-  muted: '#B9A0D8',
-  card: 'rgba(255,255,255,0.06)',
-  cardBorder: 'rgba(255,255,255,0.14)',
-  danger: '#FF8FB1',
-};
-
-const TABS = [
-  { key: 'name', label: 'Name match', icon: 'heart' },
-  { key: 'finger', label: 'Fingerprint', icon: 'finger-print' },
-];
-
-const SCAN_MS = 3000;
-
-/* -------------------------------------------------------------------------- */
-/*  Content                                                                   */
-/* -------------------------------------------------------------------------- */
-
-const TIERS = [
-  {
-    min: 90,
-    emoji: '💘',
-    title: 'Perfect match!',
-    message: 'Made for each other. Kismat ne pehle hi likh diya tha.',
-    advice: 'Der kis baat ki? Aaj hi dinner plan karo aur dil ki baat bol do.',
-  },
-  {
-    min: 75,
-    emoji: '💞',
-    title: 'Soulmate vibes',
-    message: 'Tumhari chemistry kamaal ki hai.',
-    advice: 'Saath mein kuch naya try karo: nayi jagah, nayi adventure. Yaadein yahin se banti hain.',
-  },
-  {
-    min: 60,
-    emoji: '🔥',
-    title: 'Strong spark',
-    message: 'Spark hai, bas thodi hawa chahiye.',
-    advice: 'Roz ek chhota sa compliment do. Chhoti cheezein hi badi kahani banati hain.',
-  },
-  {
-    min: 45,
-    emoji: '😊',
-    title: 'Good friends',
-    message: 'Dosti ki neev solid hai.',
-    advice: 'Pehle best friends bano, phir dekhna kahani kahan jaati hai. Coffee pe milo!',
-  },
-  {
-    min: 30,
-    emoji: '🌱',
-    title: 'Slow burn',
-    message: 'Waqt lagega, par kuch bura nahi.',
-    advice: 'Ek dusre ko samajhne ka time do. Dhyaan se sunna sabse bada superpower hai.',
-  },
-  {
-    min: 0,
-    emoji: '🌪️',
-    title: 'Opposites attract?',
-    message: 'Numbers kam hain, par pyaar numbers se nahi chalta.',
-    advice: 'Kabhi kabhi opposites hi best jodi banate hain. Dil ki suno, score sirf ek game hai.',
-  },
-];
-
-const getTier = (score) => TIERS.find((t) => score >= t.min) || TIERS[TIERS.length - 1];
-
-const LOVE_LINES = [
-  { kind: 'Love quote', text: 'Pyaar dhoondhne se nahi milta, par jab milta hai to duniya ka rang badal jaata hai.' },
-  { kind: 'Love quote', text: 'Do dilon ka rishta chai jaisa hota hai: thodi mithaas, thodi garmi, aur saath baithne ka mazaa.' },
-  { kind: 'Love quote', text: 'Tumhari muskurahat mera favourite notification hai.' },
-  { kind: 'Love quote', text: 'Sacha pyaar wo hai jahan chup rehna bhi comfortable lage.' },
-  { kind: 'Love quote', text: 'Kisi ko impress karne se zyada zaroori hai, kisi ke saath khud jaisa rehna.' },
-  { kind: 'Love quote', text: 'Dil ki baat kehne ke liye perfect words nahi, bas himmat chahiye.' },
-  { kind: 'Relationship tip', text: 'Din mein ek baar bina wajah "thinking of you" bhejo. Chhoti baat, bada asar.' },
-  { kind: 'Relationship tip', text: 'Phone rakh ke baat suno. Poori tarah present rehna sabse pyara gift hai.' },
-  { kind: 'Relationship tip', text: 'Jhagda ho to problem se ladho, partner se nahi.' },
-  { kind: 'Relationship tip', text: 'Partner ki chhoti jeet ko aise celebrate karo jaise wo tumhari badi jeet ho.' },
-  { kind: 'Relationship tip', text: 'Sorry bolne me sharam mat karo, aur thank you bolne me kanjoosi mat karo.' },
-  { kind: 'Relationship tip', text: 'Har hafte ek no-phone date rakho: sirf tum aur wo.' },
-];
-
-/* -------------------------------------------------------------------------- */
-/*  Helpers                                                                   */
-/* -------------------------------------------------------------------------- */
-
-function tap(style) {
-  try {
-    Haptics.impactAsync(style || Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-  } catch (e) {
-    // haptics unavailable (web preview etc.)
+<!doctype html>
+<html lang="hi-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12032a">
+<title>Love Calculator &amp; Match Meter</title>
+<style>
+  :root {
+    --bg-top: #12032a;
+    --bg-mid: #2a0b4d;
+    --bg-bottom: #4b0f62;
+    --pink: #ff3d9a;
+    --hot: #ff7bc8;
+    --violet: #a855f7;
+    --text: #fcebff;
+    --muted: #b9a0d8;
+    --card: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.14);
+    --danger: #ff8fb1;
+    --pad: min(40vw, 160px);
   }
-}
 
-function notify(type) {
-  try {
-    Haptics.notificationAsync(type || Haptics.NotificationFeedbackType.Success).catch(() => {});
-  } catch (e) {
-    // haptics unavailable
+  *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+
+  html { background: var(--bg-top); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    color: var(--text);
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    overflow-x: hidden;
   }
-}
 
-const cap = (s) => {
-  const t = s.trim();
-  return t.charAt(0).toUpperCase() + t.slice(1);
-};
-
-// Same jodi => same score, chahe naam ka order kuch bhi ho.
-function nameScore(a, b) {
-  const clean = (s) => s.trim().toLowerCase().replace(/\s+/g, '');
-  const [x, y] = [clean(a), clean(b)].sort();
-  const str = `${x}<3${y}`;
-  let h = 7;
-  for (let i = 0; i < str.length; i += 1) {
-    h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0;
+  .bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(60% 40% at 100% 0%, rgba(255, 61, 154, 0.22), transparent 70%),
+      radial-gradient(70% 45% at 0% 85%, rgba(168, 85, 247, 0.24), transparent 70%),
+      linear-gradient(165deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-bottom) 100%);
   }
-  return 27 + (Math.abs(h) % 73); // 27..99
-}
 
-/* -------------------------------------------------------------------------- */
-/*  Small building blocks                                                     */
-/* -------------------------------------------------------------------------- */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 
-// Soft neon glow: concentric low-opacity circles (no blur dependency needed).
-function Glow({ color, size, style }) {
-  return (
-    <View
-      pointerEvents="none"
-      style={[{ position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}
-    >
-      {[1, 0.78, 0.56, 0.36].map((k, i) => (
-        <View
-          key={i}
-          style={{
-            position: 'absolute',
-            width: size * k,
-            height: size * k,
-            borderRadius: (size * k) / 2,
-            backgroundColor: color,
-            opacity: 0.06,
-          }}
-        />
-      ))}
-    </View>
-  );
-}
+  :focus-visible { outline: 2px solid var(--hot); outline-offset: 3px; }
 
-function Background() {
-  return (
-    <>
-      <LinearGradient
-        colors={[C.bgTop, C.bgMid, C.bgBottom]}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-      <Glow color={C.pink} size={360} style={{ top: -110, right: -110 }} />
-      <Glow color={C.violet} size={400} style={{ bottom: 20, left: -170 }} />
-    </>
-  );
-}
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: max(16px, env(safe-area-inset-top)) 20px calc(120px + env(safe-area-inset-bottom));
+  }
 
-function Header() {
-  return (
-    <View style={styles.header}>
-      <View style={styles.logoGlow}>
-        <LinearGradient
-          colors={[C.pink, C.violet]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.logo}
-        >
-          <Ionicons name="heart" size={22} color="#fff" />
-        </LinearGradient>
-      </View>
-      <View>
-        <Text style={styles.appName}>Love Calculator</Text>
-        <Text style={styles.appSub}>& Match Meter</Text>
-      </View>
-    </View>
-  );
-}
+  /* ---------- header ---------- */
+  .head { display: flex; align-items: center; gap: 12px; padding: 6px 0 10px; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--pink), var(--violet));
+    box-shadow: 0 0 18px rgba(255, 61, 154, 0.8);
+    color: #fff;
+  }
+  .app-name {
+    margin: 0; font-size: 25px; font-weight: 800; letter-spacing: 0.2px;
+    text-shadow: 0 0 14px var(--pink);
+  }
+  .app-sub { margin: 1px 0 0; color: var(--hot); font-size: 14px; font-weight: 700; }
 
-function NeonButton({ label, icon, onPress, style }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const to = (v) =>
-    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+  .title { margin: 14px 0 0; font-size: 26px; font-weight: 800; }
+  .sub { margin: 4px 0 18px; color: var(--muted); font-size: 14px; }
 
-  return (
-    <Animated.View style={[styles.btnGlow, style, { transform: [{ scale }] }]}>
-      <Pressable onPress={onPress} onPressIn={() => to(0.96)} onPressOut={() => to(1)}>
-        <LinearGradient
-          colors={[C.pink, C.violet]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.btn}
-        >
-          {icon ? <Ionicons name={icon} size={22} color="#fff" style={{ marginRight: 8 }} /> : null}
-          <Text style={styles.btnText}>{label}</Text>
-        </LinearGradient>
-      </Pressable>
-    </Animated.View>
-  );
-}
+  .ico { width: 20px; height: 20px; flex: none; }
 
-function GhostButton({ label, icon, onPress }) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.ghostBtn, pressed && { opacity: 0.7 }]}>
-      <Ionicons name={icon} size={16} color={C.hotPink} style={{ marginRight: 6 }} />
-      <Text style={styles.ghostBtnText}>{label}</Text>
-    </Pressable>
-  );
-}
+  /* ---------- cards & form ---------- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    padding: 18px;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  .field label { display: block; margin: 0 0 8px 4px; color: var(--muted); font-size: 13px; font-weight: 600; }
+  .input {
+    display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 14px;
+    border-radius: 16px; background: rgba(10, 0, 25, 0.45);
+    border: 1.5px solid rgba(255, 255, 255, 0.14); color: var(--muted);
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, color 0.2s;
+  }
+  .input:focus-within {
+    border-color: var(--pink); background: rgba(255, 61, 154, 0.08);
+    box-shadow: 0 0 14px rgba(255, 61, 154, 0.5); color: var(--hot);
+  }
+  .input input {
+    flex: 1; min-width: 0; background: none; border: 0; outline: 0;
+    color: var(--text); font: inherit; font-size: 17px; font-weight: 500; caret-color: var(--pink);
+  }
+  .input input::placeholder { color: #8b6fb0; }
 
-function NeonInput({ label, icon, value, onChangeText, placeholder, inputRef, returnKeyType, onSubmitEditing }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
-        <Ionicons name={icon} size={20} color={focused ? C.hotPink : C.muted} />
-        <TextInput
-          ref={inputRef}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#8B6FB0"
-          selectionColor={C.pink}
-          autoCapitalize="words"
-          autoCorrect={false}
-          maxLength={24}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmitEditing}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          style={styles.input}
-        />
-      </View>
-    </View>
-  );
-}
+  .divider { display: flex; align-items: center; margin: 14px 0; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12); }
+  .badge {
+    width: 30px; height: 30px; margin: 0 12px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--pink); color: #fff; box-shadow: 0 0 12px rgba(255, 61, 154, 0.9);
+  }
+  .badge .ico { width: 14px; height: 14px; }
 
-/* -------------------------------------------------------------------------- */
-/*  Loader                                                                    */
-/* -------------------------------------------------------------------------- */
+  .error { min-height: 20px; margin: 10px 0 0 4px; color: var(--danger); font-size: 14px; }
+  .shake { animation: shake 0.36s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(9px); }
+    60% { transform: translateX(-7px); }
+    80% { transform: translateX(5px); }
+  }
 
-const LOADING_LINES = [
-  'Naamon ko stars se match kar rahe hain…',
-  'Dil ki dhadkan gin rahe hain…',
-  'Chemistry check ho rahi hai…',
-  'Bas aakhri calculation…',
-];
+  /* ---------- buttons ---------- */
+  .btn {
+    width: 100%; height: 58px; margin-top: 8px; border: 0; border-radius: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: #fff; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: 0.3px;
+    background: linear-gradient(135deg, var(--pink), var(--violet));
+    box-shadow: 0 8px 24px rgba(255, 61, 154, 0.5);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn:active { transform: scale(0.96); box-shadow: 0 4px 14px rgba(255, 61, 154, 0.45); }
+  .btn .ico { width: 22px; height: 22px; }
 
-function HeartLoader() {
-  const spin = useRef(new Animated.Value(0)).current;
-  const beat = useRef(new Animated.Value(0)).current;
-  const [line, setLine] = useState(0);
+  .ghost {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; height: 40px; padding: 0 16px;
+    border-radius: 20px; border: 1px solid rgba(255, 123, 200, 0.45); background: none; cursor: pointer;
+    color: var(--hot); font: inherit; font-size: 14px; font-weight: 700;
+    transition: background 0.15s;
+  }
+  .ghost:active { background: rgba(255, 123, 200, 0.14); }
+  .ghost .ico { width: 16px; height: 16px; }
 
-  useEffect(() => {
-    const spinLoop = Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 2200, easing: Easing.linear, useNativeDriver: true })
-    );
-    const beatLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(beat, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(beat, { toValue: 0, duration: 420, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    spinLoop.start();
-    beatLoop.start();
-    const iv = setInterval(() => setLine((l) => (l + 1) % LOADING_LINES.length), 800);
-    return () => {
-      spinLoop.stop();
-      beatLoop.stop();
-      clearInterval(iv);
+  /* ---------- loader ---------- */
+  .loader { display: flex; flex-direction: column; align-items: center; padding: 28px 18px; }
+  .orbit-box { position: relative; width: 150px; height: 150px; display: grid; place-items: center; }
+  .orbit-box::before {
+    content: ""; position: absolute; inset: -30px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 61, 154, 0.28), transparent 65%);
+  }
+  .orbit { position: absolute; inset: 0; animation: spin 2.2s linear infinite; }
+  .orbit i { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px; transform: rotate(var(--a)) translateY(-58px); color: var(--hot); }
+  .orbit i:nth-child(even) { color: var(--violet); }
+  .orbit i svg { width: 100%; height: 100%; display: block; }
+  .beat { width: 66px; height: 66px; color: var(--pink); filter: drop-shadow(0 0 14px var(--pink)); animation: beat 0.84s ease-in-out infinite; position: relative; }
+  .loader-text { margin: 18px 0 0; font-size: 16px; font-weight: 600; text-align: center; min-height: 24px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+
+  /* ---------- result ---------- */
+  .result { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px 18px; animation: pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+  @keyframes pop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+  .rheading { margin: 0 0 4px; color: var(--muted); font-size: 16px; font-weight: 700; }
+  .heart-wrap { position: relative; width: 190px; height: 190px; margin: 6px 0; }
+  .heart-wrap::before {
+    content: ""; position: absolute; inset: -40px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 61, 154, 0.26), transparent 65%);
+  }
+  .heart { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .heart.base { color: rgba(255, 255, 255, 0.09); fill: currentColor; }
+  .heart.fill { clip-path: inset(89% 0 0 0); filter: drop-shadow(0 0 16px rgba(255, 61, 154, 0.7)); }
+  .percent {
+    position: absolute; inset: 0; display: grid; place-items: center; padding-top: 6px;
+    font-size: 48px; font-weight: 900; letter-spacing: -1px; color: #fff;
+    text-shadow: 0 2px 10px rgba(80, 0, 60, 0.6);
+  }
+  .percent small { font-size: 26px; font-weight: 800; margin-left: 1px; }
+  .percent span { display: inline-flex; align-items: baseline; }
+  .tier-title { margin: 8px 0 0; font-size: 26px; font-weight: 800; text-shadow: 0 0 12px var(--pink); }
+  .tier-msg { margin: 6px 0 0; font-size: 16px; line-height: 1.5; }
+  .advice {
+    display: flex; gap: 10px; align-self: stretch; margin-top: 16px; padding: 14px; text-align: left;
+    border-radius: 16px; background: rgba(255, 61, 154, 0.1); border: 1px solid rgba(255, 123, 200, 0.3);
+  }
+  .advice .ico { margin-top: 2px; color: var(--hot); }
+  .advice p { margin: 0; font-size: 15px; line-height: 1.5; }
+
+  /* ---------- fingerprint ---------- */
+  .pads { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; justify-items: center; margin-top: 6px; }
+  .pad-wrap { display: flex; flex-direction: column; align-items: center; }
+  .pad {
+    position: relative; width: var(--pad); height: var(--pad); border-radius: 50%;
+    background: #1b0838; border: 2px solid rgba(255, 255, 255, 0.16);
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    cursor: pointer; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .pad.down {
+    transform: scale(1.06); border-color: var(--pink);
+    box-shadow: 0 0 30px rgba(255, 61, 154, 0.85), inset 0 0 26px rgba(255, 61, 154, 0.25);
+  }
+  .pad .inner {
+    position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+    background: rgba(255, 255, 255, 0.04); pointer-events: none;
+  }
+  .pad .ring { position: absolute; inset: 10%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.08); transition: border-color 0.2s; }
+  .pad.down .ring { border-color: rgba(255, 123, 200, 0.5); }
+  .pad svg.fp { width: 56%; height: 56%; color: var(--muted); transition: color 0.2s, filter 0.2s; }
+  .pad.down svg.fp { color: #fff; filter: drop-shadow(0 0 8px var(--pink)); }
+  .ripple { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--pink); opacity: 0; pointer-events: none; }
+  .pad.down .ripple { animation: ripple 1.3s ease-out infinite; }
+  @keyframes ripple { from { transform: scale(1); opacity: 0.6; } to { transform: scale(1.45); opacity: 0; } }
+  .scanline {
+    position: absolute; left: 8%; right: 8%; top: 0; height: 4px; opacity: 0;
+    background: linear-gradient(90deg, transparent, var(--hot), transparent);
+    box-shadow: 0 0 10px var(--hot);
+  }
+  .scanning .scanline { opacity: 1; animation: sweep 1.6s ease-in-out infinite alternate; }
+  @keyframes sweep { from { transform: translateY(0); } to { transform: translateY(calc(var(--pad) - 4px)); } }
+
+  .pad-label { margin: 14px 0 0; font-size: 17px; font-weight: 800; }
+  .pad-status { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .pad.down + .pad-label + .pad-status, .pad-status.on { color: var(--hot); }
+
+  .scan-status { margin-top: 26px; }
+  .track { height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+  .fill-bar {
+    height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0);
+    background: linear-gradient(90deg, var(--pink), var(--violet)); border-radius: 6px;
+  }
+  .hint-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+  .hint { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+  .pct { color: var(--hot); font-size: 16px; font-weight: 800; min-width: 3ch; text-align: right; }
+  .fine { display: none; margin: 10px 0 0; color: var(--muted); font-size: 12px; opacity: 0.85; }
+  @media (hover: hover) and (pointer: fine) { .fine { display: block; } }
+
+  /* ---------- quote ---------- */
+  .quote { margin-top: 26px; }
+  .qbody { transition: opacity 0.16s ease; }
+  .quote.fading .qbody { opacity: 0; }
+  .qkind { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--hot); font-size: 14px; font-weight: 700; }
+  .qtext { margin: 0; font-size: 18px; line-height: 1.5; font-weight: 500; }
+  .quote .ghost { margin-top: 12px; }
+
+  /* ---------- tab bar ---------- */
+  .tabbar {
+    position: fixed; left: 50%; bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(440px, calc(100% - 40px)); transform: translateX(-50%);
+    display: grid; grid-template-columns: 1fr 1fr; padding: 6px; z-index: 10;
+    border-radius: 28px; background: rgba(24, 6, 50, 0.92); border: 1px solid var(--card-border);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.35);
+    transition: transform 0.25s ease;
+  }
+  .tabbar.away { transform: translate(-50%, 160%); }
+  .tabbar::before {
+    content: ""; position: absolute; top: 6px; bottom: 6px; left: 6px; width: calc(50% - 6px);
+    border-radius: 22px; background: linear-gradient(135deg, var(--pink), var(--violet));
+    box-shadow: 0 0 18px rgba(255, 61, 154, 0.6);
+    transition: transform 0.35s cubic-bezier(0.3, 1.3, 0.5, 1);
+  }
+  .tabbar[data-tab="1"]::before { transform: translateX(100%); }
+  .tab {
+    position: relative; z-index: 1; height: 50px; border: 0; border-radius: 22px; background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: var(--muted); font: inherit; font-size: 15px; font-weight: 700; transition: color 0.2s;
+  }
+  .tab[aria-selected="true"] { color: #fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+
+<!-- SVG sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff3d9a"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></symbol>
+    <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+    <symbol id="i-fp" viewBox="0 0 100 100"><path d="M12 44V50M12 44A38 38 0 0 1 88 44V50"/><path d="M22 70V46A28 28 0 0 1 78 46V58"/><path d="M31 78V48A19 19 0 0 1 69 48V66"/><path d="M40 84V50A10 10 0 0 1 60 50V72"/><path d="M50 58V80"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header class="head">
+    <div class="logo" aria-hidden="true">
+      <svg class="ico" style="width:22px;height:22px" fill="currentColor"><use href="#i-heart"/></svg>
+    </div>
+    <div>
+      <h1 class="app-name">Love Calculator</h1>
+      <p class="app-sub">&amp; Match Meter</p>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ Name match ============ -->
+    <section id="panel-name" role="tabpanel" aria-labelledby="tab-name">
+      <h2 class="title">Naam se match</h2>
+      <p class="sub">Dono naam likho, baaki kaam stars ka.</p>
+
+      <div id="nameForm">
+        <form class="card" id="nameFormEl" novalidate autocomplete="off">
+          <div class="field">
+            <label for="nameA">Tumhara naam</label>
+            <div class="input">
+              <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-person"/></svg>
+              <input id="nameA" type="text" maxlength="24" placeholder="e.g. Aisha" autocapitalize="words" autocorrect="off" enterkeyhint="next">
+            </div>
+          </div>
+          <div class="divider"><span class="badge" aria-hidden="true"><svg class="ico" fill="currentColor"><use href="#i-heart"/></svg></span></div>
+          <div class="field">
+            <label for="nameB">Partner / crush ka naam</label>
+            <div class="input">
+              <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><use href="#i-heart"/></svg>
+              <input id="nameB" type="text" maxlength="24" placeholder="e.g. Rohan" autocapitalize="words" autocorrect="off" enterkeyhint="go">
+            </div>
+          </div>
+        </form>
+        <p class="error" id="nameError" role="alert"></p>
+        <button class="btn" type="submit" form="nameFormEl" id="calc">
+          <svg class="ico" fill="currentColor" aria-hidden="true"><use href="#i-heart"/></svg>
+          Calculate match
+        </button>
+      </div>
+
+      <div id="nameLoader" class="card loader" hidden>
+        <div class="orbit-box" aria-hidden="true">
+          <div class="orbit">
+            <i style="--a:0deg"><svg fill="currentColor"><use href="#i-heart"/></svg></i>
+            <i style="--a:72deg"><svg fill="currentColor"><use href="#i-heart"/></svg></i>
+            <i style="--a:144deg"><svg fill="currentColor"><use href="#i-heart"/></svg></i>
+            <i style="--a:216deg"><svg fill="currentColor"><use href="#i-heart"/></svg></i>
+            <i style="--a:288deg"><svg fill="currentColor"><use href="#i-heart"/></svg></i>
+          </div>
+          <svg class="beat" fill="currentColor"><use href="#i-heart"/></svg>
+        </div>
+        <p class="loader-text" id="loaderText" role="status"></p>
+      </div>
+
+      <div id="nameResult" hidden></div>
+    </section>
+
+    <!-- ============ Fingerprint match ============ -->
+    <section id="panel-finger" role="tabpanel" aria-labelledby="tab-finger" hidden>
+      <h2 class="title">Fingerprint match</h2>
+      <p class="sub">Tum aur partner, ek saath ungli rakho.</p>
+
+      <div id="fingerScan">
+        <div class="pads" id="pads">
+          <div class="pad-wrap">
+            <div class="pad" id="padYou" role="img" aria-label="Tumhara fingerprint pad. Yahan ungli rakho aur hold karo.">
+              <span class="ripple"></span>
+              <div class="inner">
+                <span class="ring"></span>
+                <svg class="fp" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" aria-hidden="true"><use href="#i-fp"/></svg>
+                <span class="scanline"></span>
+              </div>
+            </div>
+            <p class="pad-label">Tum</p>
+            <p class="pad-status" id="statusYou">Ungli rakho</p>
+          </div>
+          <div class="pad-wrap">
+            <div class="pad" id="padPartner" role="img" aria-label="Partner ka fingerprint pad. Yahan ungli rakho aur hold karo.">
+              <span class="ripple"></span>
+              <div class="inner">
+                <span class="ring"></span>
+                <svg class="fp" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" aria-hidden="true"><use href="#i-fp"/></svg>
+                <span class="scanline"></span>
+              </div>
+            </div>
+            <p class="pad-label">Partner</p>
+            <p class="pad-status" id="statusPartner">Ungli rakho</p>
+          </div>
+        </div>
+
+        <div class="scan-status">
+          <div class="track" aria-hidden="true"><div class="fill-bar" id="fillBar"></div></div>
+          <div class="hint-row">
+            <p class="hint" id="hint" aria-live="polite">Dono ungli apne-apne pad par rakho aur hold karo.</p>
+            <span class="pct" id="pct"></span>
+          </div>
+          <p class="fine">Mouse se ek hi pad dabega, isliye <b>A</b> (Tum) aur <b>L</b> (Partner) key hold karo.</p>
+        </div>
+      </div>
+
+      <div id="fingerResult" hidden></div>
+    </section>
+
+    <!-- ============ Quotes & tips ============ -->
+    <section class="card quote" id="quote" aria-label="Love quote ya relationship tip">
+      <div class="qbody">
+        <p class="qkind"><svg class="ico" id="qIcon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-chat"/></svg><span id="qKind"></span></p>
+        <p class="qtext" id="qText"></p>
+      </div>
+      <button class="ghost" type="button" id="nextQuote">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-refresh"/></svg>
+        <span>Next one</span>
+      </button>
+    </section>
+  </main>
+</div>
+
+<!-- Tab bar -->
+<nav class="tabbar" id="tabbar" data-tab="0" role="tablist" aria-label="Match mode">
+  <button class="tab" role="tab" id="tab-name" aria-controls="panel-name" aria-selected="true">
+    <svg class="ico" fill="currentColor" aria-hidden="true"><use href="#i-heart"/></svg>Name match
+  </button>
+  <button class="tab" role="tab" id="tab-finger" aria-controls="panel-finger" aria-selected="false" tabindex="-1">
+    <svg class="ico" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" aria-hidden="true"><use href="#i-fp"/></svg>Fingerprint
+  </button>
+</nav>
+
+<!-- Result card template (shared by both modes) -->
+<template id="resultTpl">
+  <article class="card result">
+    <p class="rheading"></p>
+    <div class="heart-wrap" aria-hidden="true">
+      <svg class="heart base" viewBox="0 0 24 24"><use href="#i-heart"/></svg>
+      <svg class="heart fill" viewBox="0 0 24 24"><use href="#i-heart" fill="url(#hg)"/></svg>
+      <div class="percent"><span><b class="pct-num">0</b><small>%</small></span></div>
+    </div>
+    <h3 class="tier-title"></h3>
+    <p class="tier-msg"></p>
+    <div class="advice">
+      <svg class="ico" fill="currentColor" aria-hidden="true"><use href="#i-spark"/></svg>
+      <p></p>
+    </div>
+    <button type="button" class="ghost">
+      <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-refresh"/></svg>
+      <span></span>
+    </button>
+    <p class="sr-only" role="status"></p>
+  </article>
+</template>
+
+<noscript>Is app ko chalane ke liye JavaScript on karo.</noscript>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------------------------------------------------ */
+  /*  Content                                                           */
+  /* ------------------------------------------------------------------ */
+  const TIERS = [
+    { min: 90, emoji: '💘', title: 'Perfect match!',
+      message: 'Made for each other. Kismat ne pehle hi likh diya tha.',
+      advice: 'Der kis baat ki? Aaj hi dinner plan karo aur dil ki baat bol do.' },
+    { min: 75, emoji: '💞', title: 'Soulmate vibes',
+      message: 'Tumhari chemistry kamaal ki hai.',
+      advice: 'Saath mein kuch naya try karo: nayi jagah, nayi adventure. Yaadein yahin se banti hain.' },
+    { min: 60, emoji: '🔥', title: 'Strong spark',
+      message: 'Spark hai, bas thodi hawa chahiye.',
+      advice: 'Roz ek chhota sa compliment do. Chhoti cheezein hi badi kahani banati hain.' },
+    { min: 45, emoji: '😊', title: 'Good friends',
+      message: 'Dosti ki neev solid hai.',
+      advice: 'Pehle best friends bano, phir dekhna kahani kahan jaati hai. Coffee pe milo!' },
+    { min: 30, emoji: '🌱', title: 'Slow burn',
+      message: 'Waqt lagega, par kuch bura nahi.',
+      advice: 'Ek dusre ko samajhne ka time do. Dhyaan se sunna sabse bada superpower hai.' },
+    { min: 0, emoji: '🌪️', title: 'Opposites attract?',
+      message: 'Numbers kam hain, par pyaar numbers se nahi chalta.',
+      advice: 'Kabhi kabhi opposites hi best jodi banate hain. Dil ki suno, score sirf ek game hai.' },
+  ];
+
+  const LOVE_LINES = [
+    { kind: 'Love quote', text: 'Pyaar dhoondhne se nahi milta, par jab milta hai to duniya ka rang badal jaata hai.' },
+    { kind: 'Love quote', text: 'Do dilon ka rishta chai jaisa hota hai: thodi mithaas, thodi garmi, aur saath baithne ka mazaa.' },
+    { kind: 'Love quote', text: 'Tumhari muskurahat mera favourite notification hai.' },
+    { kind: 'Love quote', text: 'Sacha pyaar wo hai jahan chup rehna bhi comfortable lage.' },
+    { kind: 'Love quote', text: 'Kisi ko impress karne se zyada zaroori hai, kisi ke saath khud jaisa rehna.' },
+    { kind: 'Love quote', text: 'Dil ki baat kehne ke liye perfect words nahi, bas himmat chahiye.' },
+    { kind: 'Relationship tip', text: 'Din mein ek baar bina wajah "thinking of you" bhejo. Chhoti baat, bada asar.' },
+    { kind: 'Relationship tip', text: 'Phone rakh ke baat suno. Poori tarah present rehna sabse pyara gift hai.' },
+    { kind: 'Relationship tip', text: 'Jhagda ho to problem se ladho, partner se nahi.' },
+    { kind: 'Relationship tip', text: 'Partner ki chhoti jeet ko aise celebrate karo jaise wo tumhari badi jeet ho.' },
+    { kind: 'Relationship tip', text: 'Sorry bolne me sharam mat karo, aur thank you bolne me kanjoosi mat karo.' },
+    { kind: 'Relationship tip', text: 'Har hafte ek no-phone date rakho: sirf tum aur wo.' },
+  ];
+
+  const LOADING_LINES = [
+    'Naamon ko stars se match kar rahe hain…',
+    'Dil ki dhadkan gin rahe hain…',
+    'Chemistry check ho rahi hai…',
+    'Bas aakhri calculation…',
+  ];
+
+  const SCAN_MS = 3000;
+
+  /* ------------------------------------------------------------------ */
+  /*  Helpers                                                           */
+  /* ------------------------------------------------------------------ */
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const buzz = (pattern) => { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* not supported */ } };
+  const getTier = (score) => TIERS.find((t) => score >= t.min) || TIERS[TIERS.length - 1];
+  const cap = (s) => { const t = s.trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
+
+  // Same jodi => same score, chahe naam ka order kuch bhi ho.
+  function nameScore(a, b) {
+    const clean = (s) => s.trim().toLowerCase().replace(/\s+/g, '');
+    const [x, y] = [clean(a), clean(b)].sort();
+    const str = `${x}<3${y}`;
+    let h = 7;
+    for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0;
+    return 27 + (Math.abs(h) % 73); // 27..99
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Shared result card                                                */
+  /* ------------------------------------------------------------------ */
+  function showResult(mount, { score, heading, resetLabel, onReset }) {
+    const root = $('#resultTpl').content.cloneNode(true).firstElementChild;
+    const tier = getTier(score);
+
+    $('.rheading', root).textContent = heading;
+    $('.tier-title', root).textContent = `${tier.emoji} ${tier.title}`;
+    $('.tier-msg', root).textContent = tier.message;
+    $('.advice p', root).textContent = tier.advice;
+    $('.ghost span', root).textContent = resetLabel;
+    $('.ghost', root).addEventListener('click', onReset);
+
+    mount.replaceChildren(root);
+    mount.hidden = false;
+
+    const numEl = $('.pct-num', root);
+    const fillEl = $('.heart.fill', root);
+    const status = $('.sr-only', root);
+    const dur = reduceMotion ? 1 : 1600;
+    const t0 = performance.now();
+
+    // Heart glyph spans ~12.5%..89% of its box, so map score onto that range.
+    const step = (now) => {
+      if (!root.isConnected) return;
+      const t = Math.min(1, (now - t0) / dur);
+      const v = score * (1 - Math.pow(1 - t, 3));
+      numEl.textContent = Math.round(v);
+      fillEl.style.clipPath = `inset(${(89 - 0.765 * v).toFixed(2)}% 0 0 0)`;
+      if (t < 1) requestAnimationFrame(step);
+      else status.textContent = `${score} percent match. ${tier.title}`;
     };
-  }, []);
+    requestAnimationFrame(step);
+  }
 
-  const BOX = 150;
-  const R = 58;
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const scale = beat.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] });
-  const orbiters = [0, 1, 2, 3, 4].map((i) => {
-    const ang = (i / 5) * 2 * Math.PI;
-    return { left: BOX / 2 + R * Math.sin(ang) - 8, top: BOX / 2 - R * Math.cos(ang) - 8 };
+  /* ------------------------------------------------------------------ */
+  /*  Tabs                                                              */
+  /* ------------------------------------------------------------------ */
+  const tabbar = $('#tabbar');
+  const tabs = [$('#tab-name'), $('#tab-finger')];
+  const panels = [$('#panel-name'), $('#panel-finger')];
+  let currentTab = 0;
+
+  function setTab(i) {
+    if (i === currentTab) return;
+    currentTab = i;
+    tabbar.dataset.tab = i;
+    tabs.forEach((t, j) => {
+      t.setAttribute('aria-selected', String(j === i));
+      t.tabIndex = j === i ? 0 : -1;
+    });
+    panels.forEach((p, j) => { p.hidden = j !== i; });
+    buzz(8);
+    window.scrollTo({ top: 0 });
+  }
+
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => setTab(i));
+    tab.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const n = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      setTab(n);
+      tabs[n].focus();
+    });
   });
 
-  return (
-    <View style={[styles.card, styles.loaderCard]}>
-      <View style={{ width: BOX, height: BOX, alignItems: 'center', justifyContent: 'center' }}>
-        <Glow color={C.pink} size={BOX * 1.5} />
-        <Animated.View
-          style={{ position: 'absolute', width: BOX, height: BOX, transform: [{ rotate }] }}
-        >
-          {orbiters.map((o, i) => (
-            <Ionicons
-              key={i}
-              name="heart"
-              size={16}
-              color={i % 2 ? C.violet : C.hotPink}
-              style={{ position: 'absolute', left: o.left, top: o.top }}
-            />
-          ))}
-        </Animated.View>
-        <Animated.View style={{ transform: [{ scale }] }}>
-          <Ionicons name="heart" size={66} color={C.pink} style={styles.neonIcon} />
-        </Animated.View>
-      </View>
-      <Text style={styles.loaderText}>{LOADING_LINES[line]}</Text>
-    </View>
-  );
-}
+  // Keyboard khulne par tab bar hata do
+  document.addEventListener('focusin', (e) => { if (e.target.matches('input')) tabbar.classList.add('away'); });
+  document.addEventListener('focusout', (e) => { if (e.target.matches('input')) tabbar.classList.remove('away'); });
 
-/* -------------------------------------------------------------------------- */
-/*  Result card (shared by both modes)                                        */
-/* -------------------------------------------------------------------------- */
+  /* ------------------------------------------------------------------ */
+  /*  Mode 1: Name match                                                */
+  /* ------------------------------------------------------------------ */
+  const nameA = $('#nameA');
+  const nameB = $('#nameB');
+  const nameError = $('#nameError');
+  const nameFormEl = $('#nameFormEl');
+  const loaderText = $('#loaderText');
+  let nameTimer = null;
+  let loaderIv = null;
 
-function ResultCard({ score, heading, resetLabel, onReset }) {
-  const tier = getTier(score);
-  const progress = useRef(new Animated.Value(0)).current;
-  const pop = useRef(new Animated.Value(0)).current;
-  const [shown, setShown] = useState(0);
-  const H = 168;
+  function nameView(view) {
+    $('#nameForm').hidden = view !== 'form';
+    $('#nameLoader').hidden = view !== 'loading';
+    $('#nameResult').hidden = view !== 'result';
+  }
 
-  useEffect(() => {
-    const id = progress.addListener(({ value }) => setShown(Math.round(value)));
-    Animated.parallel([
-      Animated.timing(progress, {
-        toValue: score,
-        duration: 1600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.spring(pop, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }),
-    ]).start();
-    return () => {
-      progress.removeListener(id);
-      progress.stopAnimation();
-    };
-  }, []);
+  function shake(el) {
+    el.classList.remove('shake');
+    void el.offsetWidth; // restart animation
+    el.classList.add('shake');
+  }
+  nameFormEl.addEventListener('animationend', () => nameFormEl.classList.remove('shake'));
 
-  const fillHeight = progress.interpolate({
-    inputRange: [0, 100],
-    outputRange: [0, H],
-    extrapolate: 'clamp',
+  nameA.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); nameB.focus(); }
   });
-  const cardScale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
+  [nameA, nameB].forEach((inp) => inp.addEventListener('input', () => { nameError.textContent = ''; }));
 
-  return (
-    <Animated.View style={[styles.card, styles.resultCard, { opacity: pop, transform: [{ scale: cardScale }] }]}>
-      {heading ? <Text style={styles.resultHeading}>{heading}</Text> : null}
+  nameFormEl.addEventListener('submit', (e) => { e.preventDefault(); calculate(); });
+  $('#calc').addEventListener('click', (e) => { e.preventDefault(); calculate(); });
 
-      {/* Heart that fills up with the score */}
-      <View style={{ width: H, height: H, alignItems: 'center', justifyContent: 'center', marginVertical: 8 }}>
-        <Glow color={C.pink} size={H * 1.7} />
-        <Ionicons name="heart" size={H} color="rgba(255,255,255,0.09)" style={{ position: 'absolute' }} />
-        <Animated.View
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: fillHeight,
-            overflow: 'hidden',
-            alignItems: 'center',
-          }}
-        >
-          <Ionicons name="heart" size={H} color={C.pink} style={{ position: 'absolute', bottom: 0 }} />
-        </Animated.View>
-        <Text style={styles.percent}>{shown}%</Text>
-      </View>
-
-      <Text style={styles.tierTitle}>
-        {tier.emoji} {tier.title}
-      </Text>
-      <Text style={styles.tierMessage}>{tier.message}</Text>
-
-      <View style={styles.adviceBox}>
-        <Ionicons name="sparkles" size={18} color={C.hotPink} style={{ marginTop: 2 }} />
-        <Text style={styles.adviceText}>{tier.advice}</Text>
-      </View>
-
-      <GhostButton label={resetLabel} icon="refresh" onPress={onReset} />
-    </Animated.View>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Mode 1: Name match                                                        */
-/* -------------------------------------------------------------------------- */
-
-function NameMatchScreen() {
-  const [a, setA] = useState('');
-  const [b, setB] = useState('');
-  const [phase, setPhase] = useState('idle'); // idle | loading | result
-  const [score, setScore] = useState(0);
-  const [error, setError] = useState('');
-  const shake = useRef(new Animated.Value(0)).current;
-  const timer = useRef(null);
-  const secondRef = useRef(null);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  const runShake = () =>
-    Animated.sequence(
-      [10, -10, 8, -8, 0].map((v) => Animated.timing(shake, { toValue: v, duration: 60, useNativeDriver: true }))
-    ).start();
-
-  const calculate = () => {
-    Keyboard.dismiss();
-    if (!a.trim() || !b.trim()) {
-      setError('Dono naam likho, tabhi match hoga.');
-      runShake();
-      notify(Haptics.NotificationFeedbackType.Warning);
+  function calculate() {
+    const a = nameA.value.trim();
+    const b = nameB.value.trim();
+    if (!a || !b) {
+      nameError.textContent = 'Dono naam likho, tabhi match hoga.';
+      shake(nameFormEl);
+      buzz([30, 40, 30]);
+      (!a ? nameA : nameB).focus();
       return;
     }
-    setError('');
-    setPhase('loading');
-    tap(Haptics.ImpactFeedbackStyle.Medium);
-    timer.current = setTimeout(() => {
-      setScore(nameScore(a, b));
-      setPhase('result');
-      notify(Haptics.NotificationFeedbackType.Success);
-    }, 2400);
-  };
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    nameError.textContent = '';
+    nameView('loading');
+    buzz(15);
 
-  const reset = () => {
-    setA('');
-    setB('');
-    setError('');
-    setPhase('idle');
-  };
+    let line = 0;
+    loaderText.textContent = LOADING_LINES[0];
+    clearInterval(loaderIv);
+    loaderIv = setInterval(() => {
+      line = (line + 1) % LOADING_LINES.length;
+      loaderText.textContent = LOADING_LINES[line];
+    }, 800);
 
-  return (
-    <View>
-      <Text style={styles.screenTitle}>Naam se match</Text>
-      <Text style={styles.screenSub}>Dono naam likho, baaki kaam stars ka.</Text>
-
-      {phase === 'idle' && (
-        <>
-          <Animated.View style={[styles.card, { transform: [{ translateX: shake }] }]}>
-            <NeonInput
-              label="Tumhara naam"
-              icon="person-outline"
-              placeholder="e.g. Aisha"
-              value={a}
-              onChangeText={(t) => {
-                setA(t);
-                if (error) setError('');
-              }}
-              returnKeyType="next"
-              onSubmitEditing={() => secondRef.current && secondRef.current.focus()}
-            />
-            <View style={styles.heartDivider}>
-              <View style={styles.dividerLine} />
-              <View style={styles.heartBadge}>
-                <Ionicons name="heart" size={14} color="#fff" />
-              </View>
-              <View style={styles.dividerLine} />
-            </View>
-            <NeonInput
-              label="Partner / crush ka naam"
-              icon="heart-outline"
-              placeholder="e.g. Rohan"
-              value={b}
-              inputRef={secondRef}
-              onChangeText={(t) => {
-                setB(t);
-                if (error) setError('');
-              }}
-              returnKeyType="done"
-              onSubmitEditing={calculate}
-            />
-          </Animated.View>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <NeonButton label="Calculate match" icon="heart-circle" onPress={calculate} style={{ marginTop: 18 }} />
-        </>
-      )}
-
-      {phase === 'loading' && <HeartLoader />}
-
-      {phase === 'result' && (
-        <ResultCard
-          key={`${a}-${b}`}
-          score={score}
-          heading={`${cap(a)}  💗  ${cap(b)}`}
-          resetLabel="Try another pair"
-          onReset={reset}
-        />
-      )}
-    </View>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Mode 2: Fingerprint match                                                 */
-/* -------------------------------------------------------------------------- */
-
-function FingerPad({ label, size, down, scanning, onDown, onUp }) {
-  const count = useRef(0);
-  const glow = useRef(new Animated.Value(0)).current;
-  const ripple = useRef(new Animated.Value(0)).current;
-  const scan = useRef(new Animated.Value(0)).current;
-
-  // Finger down: glow + expanding neon ripple
-  useEffect(() => {
-    Animated.spring(glow, { toValue: down ? 1 : 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
-    if (!down) {
-      ripple.setValue(0);
-      return undefined;
-    }
-    const loop = Animated.loop(
-      Animated.timing(ripple, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [down]);
-
-  // Both fingers down: scan line sweeps up and down
-  useEffect(() => {
-    if (!scanning) {
-      scan.setValue(0);
-      return undefined;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scan, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(scan, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [scanning]);
-
-  // Raw touch events => dono pads par ek saath ungli rakh sakte ho (multi-touch)
-  const handleStart = () => {
-    count.current += 1;
-    if (count.current === 1) onDown();
-  };
-  const handleEnd = () => {
-    count.current = Math.max(0, count.current - 1);
-    if (count.current === 0) onUp();
-  };
-
-  const padScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
-  const rippleScale = ripple.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] });
-  const rippleOpacity = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
-  const lineY = scan.interpolate({ inputRange: [0, 1], outputRange: [0, size - 4] });
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Animated.View style={{ transform: [{ scale: padScale }] }}>
-        <View
-          onTouchStart={handleStart}
-          onTouchEnd={handleEnd}
-          onTouchCancel={handleEnd}
-          style={[
-            styles.padOuter,
-            { width: size, height: size, borderRadius: size / 2 },
-            down && styles.padOuterActive,
-          ]}
-        >
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.ripple,
-              { borderRadius: size / 2, opacity: down ? rippleOpacity : 0, transform: [{ scale: rippleScale }] },
-            ]}
-          />
-          <View pointerEvents="none" style={[styles.padInner, { borderRadius: size / 2 }]}>
-            <View
-              style={{
-                position: 'absolute',
-                width: size * 0.8,
-                height: size * 0.8,
-                borderRadius: size * 0.4,
-                borderWidth: 1,
-                borderColor: down ? 'rgba(255,123,200,0.5)' : 'rgba(255,255,255,0.08)',
-              }}
-            />
-            <Ionicons
-              name="finger-print"
-              size={size * 0.56}
-              color={down ? '#fff' : C.muted}
-              style={down ? styles.neonIcon : null}
-            />
-            {scanning ? (
-              <Animated.View style={[styles.scanLine, { transform: [{ translateY: lineY }] }]}>
-                <LinearGradient
-                  colors={['rgba(255,61,154,0)', '#FF7BC8', 'rgba(255,61,154,0)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            ) : null}
-          </View>
-        </View>
-      </Animated.View>
-      <Text style={styles.padLabel}>{label}</Text>
-      <Text style={[styles.padStatus, down && { color: C.hotPink }]}>{down ? 'Ungli mil gayi' : 'Ungli rakho'}</Text>
-    </View>
-  );
-}
-
-function FingerprintScreen({ onLockChange }) {
-  const { width } = useWindowDimensions();
-  const size = Math.min(160, Math.floor((width - 40 - 18) / 2));
-  const [left, setLeft] = useState(false);
-  const [right, setRight] = useState(false);
-  const [phase, setPhase] = useState('idle'); // idle | scanning | result
-  const [score, setScore] = useState(0);
-  const [pct, setPct] = useState(0);
-  const [runId, setRunId] = useState(0);
-  const phaseRef = useRef('idle');
-  const progress = useRef(new Animated.Value(0)).current;
-
-  const go = (p) => {
-    phaseRef.current = p;
-    setPhase(p);
-  };
-
-  useEffect(() => {
-    const id = progress.addListener(({ value }) => setPct(Math.round(value * 100)));
-    return () => progress.removeListener(id);
-  }, []);
-
-  // Jab tak ungli pad par hai, parent ScrollView ko lock rakho
-  useEffect(() => {
-    onLockChange(left || right);
-  }, [left, right]);
-  useEffect(() => () => onLockChange(false), []);
-
-  useEffect(() => {
-    if (phaseRef.current === 'result') return undefined;
-
-    if (!(left && right)) {
-      if (phaseRef.current === 'scanning') {
-        go('idle');
-        Animated.timing(progress, { toValue: 0, duration: 250, useNativeDriver: false }).start();
-      }
-      return undefined;
-    }
-
-    go('scanning');
-    progress.setValue(0);
-    const t0 = Date.now();
-    const iv = setInterval(() => {
-      const e = Date.now() - t0;
-      tap(
-        e < 1200
-          ? Haptics.ImpactFeedbackStyle.Light
-          : e < 2300
-          ? Haptics.ImpactFeedbackStyle.Medium
-          : Haptics.ImpactFeedbackStyle.Heavy
-      );
-    }, 170);
-    const anim = Animated.timing(progress, {
-      toValue: 1,
-      duration: SCAN_MS,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    });
-    anim.start(({ finished }) => {
-      if (!finished) return;
-      clearInterval(iv);
-      setScore(38 + Math.floor(Math.random() * 63)); // 38..100
-      setRunId((n) => n + 1);
-      go('result');
-      setLeft(false);
-      setRight(false);
-      notify(Haptics.NotificationFeedbackType.Success);
-    });
-    return () => {
-      anim.stop();
-      clearInterval(iv);
-    };
-  }, [left, right]);
-
-  const reset = () => {
-    progress.setValue(0);
-    setPct(0);
-    go('idle');
-  };
-
-  const barWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
-  const hint =
-    phase === 'scanning'
-      ? 'Scanning… ungli mat hatana!'
-      : left || right
-      ? 'Ab dusri ungli bhi rakho.'
-      : 'Dono ungli apne-apne pad par rakho aur hold karo.';
-
-  return (
-    <View>
-      <Text style={styles.screenTitle}>Fingerprint match</Text>
-      <Text style={styles.screenSub}>Tum aur partner, ek saath ungli rakho.</Text>
-
-      {phase !== 'result' ? (
-        <>
-          <View style={styles.padRow}>
-            <FingerPad
-              label="Tum"
-              size={size}
-              down={left}
-              scanning={phase === 'scanning'}
-              onDown={() => {
-                setLeft(true);
-                tap(Haptics.ImpactFeedbackStyle.Medium);
-              }}
-              onUp={() => setLeft(false)}
-            />
-            <FingerPad
-              label="Partner"
-              size={size}
-              down={right}
-              scanning={phase === 'scanning'}
-              onDown={() => {
-                setRight(true);
-                tap(Haptics.ImpactFeedbackStyle.Medium);
-              }}
-              onUp={() => setRight(false)}
-            />
-          </View>
-
-          <View style={styles.scanStatus}>
-            <View style={styles.track}>
-              <Animated.View style={[styles.fillWrap, { width: barWidth }]}>
-                <LinearGradient
-                  colors={[C.pink, C.violet]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            </View>
-            <View style={styles.hintRow}>
-              <Text style={styles.hint}>{hint}</Text>
-              {phase === 'scanning' ? <Text style={styles.pct}>{pct}%</Text> : null}
-            </View>
-          </View>
-        </>
-      ) : (
-        <ResultCard
-          key={runId}
-          score={score}
-          heading="Tum & Partner"
-          resetLabel="Scan again"
-          onReset={reset}
-        />
-      )}
-    </View>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Quotes & tips                                                             */
-/* -------------------------------------------------------------------------- */
-
-function QuoteCard() {
-  // Roz ki pehli line din ke hisaab se badalti hai; button se aur line lo.
-  const [idx, setIdx] = useState(() => Math.floor(Date.now() / 86400000) % LOVE_LINES.length);
-  const fade = useRef(new Animated.Value(1)).current;
-
-  const next = () => {
-    tap(Haptics.ImpactFeedbackStyle.Light);
-    Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
-      setIdx((cur) => {
-        let n = cur;
-        while (n === cur) n = Math.floor(Math.random() * LOVE_LINES.length);
-        return n;
+    clearTimeout(nameTimer);
+    nameTimer = setTimeout(() => {
+      clearInterval(loaderIv);
+      showResult($('#nameResult'), {
+        score: nameScore(a, b),
+        heading: `${cap(a)}  💗  ${cap(b)}`,
+        resetLabel: 'Try another pair',
+        onReset: () => {
+          nameA.value = '';
+          nameB.value = '';
+          nameView('form');
+          nameA.focus();
+        },
       });
-      Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }).start();
-    });
-  };
+      nameView('result');
+      buzz([40, 30, 80]);
+    }, 2400);
+  }
 
-  const item = LOVE_LINES[idx];
-  const isTip = item.kind === 'Relationship tip';
+  /* ------------------------------------------------------------------ */
+  /*  Mode 2: Fingerprint match                                         */
+  /* ------------------------------------------------------------------ */
+  const padsEl = $('#pads');
+  const fillBar = $('#fillBar');
+  const hintEl = $('#hint');
+  const pctEl = $('#pct');
+  const scan = { phase: 'idle', t0: 0, raf: 0, buzz: 0 };
+  const pads = {};
 
-  return (
-    <View style={[styles.card, { marginTop: 26 }]}>
-      <Animated.View style={{ opacity: fade }}>
-        <View style={styles.quoteKindRow}>
-          <Ionicons name={isTip ? 'bulb' : 'chatbubble-ellipses'} size={18} color={C.hotPink} />
-          <Text style={styles.quoteKind}>{item.kind}</Text>
-        </View>
-        <Text style={styles.quoteText}>{item.text}</Text>
-      </Animated.View>
-      <View style={{ alignItems: 'flex-start', marginTop: 4 }}>
-        <GhostButton label="Next one" icon="refresh" onPress={next} />
-      </View>
-    </View>
-  );
-}
+  function makePad(el, statusEl, key) {
+    const p = { el, ids: new Set(), down: false, keyHeld: false };
 
-/* -------------------------------------------------------------------------- */
-/*  Bottom tab bar                                                            */
-/* -------------------------------------------------------------------------- */
-
-function TabBar({ tab, onChange, bottom }) {
-  const [w, setW] = useState(0);
-  const x = useRef(new Animated.Value(0)).current;
-  const pad = 6;
-  const tabW = w > 0 ? (w - pad * 2) / TABS.length : 0;
-
-  useEffect(() => {
-    Animated.spring(x, { toValue: tab * tabW, useNativeDriver: true, friction: 9, tension: 90 }).start();
-  }, [tab, tabW]);
-
-  return (
-    <View style={[styles.tabBar, { bottom }]} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
-      {tabW > 0 && (
-        <Animated.View style={[styles.tabIndicator, { width: tabW, transform: [{ translateX: x }] }]}>
-          <LinearGradient
-            colors={[C.pink, C.violet]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1, borderRadius: 22 }}
-          />
-        </Animated.View>
-      )}
-      {TABS.map((t, i) => (
-        <Pressable key={t.key} style={styles.tabItem} onPress={() => onChange(i)}>
-          <Ionicons name={t.icon} size={20} color={tab === i ? '#fff' : C.muted} />
-          <Text style={[styles.tabLabel, tab === i && { color: '#fff' }]}>{t.label}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  App shell                                                                 */
-/* -------------------------------------------------------------------------- */
-
-function Main() {
-  const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState(0);
-  const [locked, setLocked] = useState(false);
-  const [kbOpen, setKbOpen] = useState(false);
-  const fade = useRef(new Animated.Value(1)).current;
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKbOpen(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
-    return () => {
-      show.remove();
-      hide.remove();
+    p.sync = () => {
+      const d = p.ids.size > 0 || p.keyHeld;
+      if (d === p.down) return;
+      p.down = d;
+      el.classList.toggle('down', d);
+      statusEl.classList.toggle('on', d);
+      statusEl.textContent = d ? 'Ungli mil gayi' : 'Ungli rakho';
+      if (d) buzz(15);
+      update();
     };
-  }, []);
+    p.clear = () => { p.ids.clear(); p.keyHeld = false; p.sync(); };
 
-  const changeTab = (i) => {
-    if (i === tab) return;
-    tap(Haptics.ImpactFeedbackStyle.Light);
-    Keyboard.dismiss();
-    setTab(i);
-    if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: false });
-    fade.setValue(0);
-    Animated.timing(fade, { toValue: 1, duration: 280, useNativeDriver: true }).start();
-  };
+    // Pointer Events => har ungli alag track hoti hai, isliye dono pads ek saath kaam karte hain
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      p.ids.add(e.pointerId);
+      p.sync();
+    });
+    const release = (e) => { p.ids.delete(e.pointerId); p.sync(); };
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, release));
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
 
-  const tabBottom = Math.max(insets.bottom, 12);
+    pads[key] = p;
+    return p;
+  }
 
-  return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" />
-      <Background />
+  makePad($('#padYou'), $('#statusYou'), 'you');
+  makePad($('#padPartner'), $('#statusPartner'), 'partner');
 
-      <View style={{ paddingTop: insets.top + 10 }}>
-        <Header />
-      </View>
+  // Desktop fallback: A = Tum, L = Partner
+  const keyMap = { a: 'you', l: 'partner' };
+  document.addEventListener('keydown', (e) => {
+    const k = keyMap[e.key.toLowerCase()];
+    if (!k || e.repeat || currentTab !== 1 || e.target.matches('input')) return;
+    pads[k].keyHeld = true;
+    pads[k].sync();
+  });
+  document.addEventListener('keyup', (e) => {
+    const k = keyMap[e.key.toLowerCase()];
+    if (!k) return;
+    pads[k].keyHeld = false;
+    pads[k].sync();
+  });
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        <ScrollView
-          ref={scrollRef}
-          scrollEnabled={!locked}
-          keyboardShouldPersistTaps="handled"
-          delaysContentTouches={false}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: tabBottom + 110 }}
-        >
-          <Animated.View style={{ opacity: fade }}>
-            <View style={tab === 0 ? null : styles.hidden}>
-              <NameMatchScreen />
-            </View>
-            <View style={tab === 1 ? null : styles.hidden}>
-              <FingerprintScreen onLockChange={setLocked} />
-            </View>
-            <QuoteCard />
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+  function updateHint() {
+    const y = pads.you.down;
+    const p = pads.partner.down;
+    hintEl.textContent =
+      scan.phase === 'scanning' ? 'Scanning… ungli mat hatana!'
+      : (y || p) ? 'Ab dusri ungli bhi rakho.'
+      : 'Dono ungli apne-apne pad par rakho aur hold karo.';
+  }
 
-      {!kbOpen && <TabBar tab={tab} onChange={changeTab} bottom={tabBottom} />}
-    </View>
-  );
-}
+  function update() {
+    if (scan.phase === 'result') return;
+    const both = pads.you.down && pads.partner.down;
+    if (both && scan.phase !== 'scanning') startScan();
+    else if (!both && scan.phase === 'scanning') cancelScan();
+    updateHint();
+  }
 
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <Main />
-    </SafeAreaProvider>
-  );
-}
+  function stopScanLoop() {
+    cancelAnimationFrame(scan.raf);
+    clearInterval(scan.buzz);
+  }
 
-/* -------------------------------------------------------------------------- */
-/*  Styles                                                                    */
-/* -------------------------------------------------------------------------- */
+  function startScan() {
+    scan.phase = 'scanning';
+    scan.t0 = performance.now();
+    padsEl.classList.add('scanning');
+    fillBar.style.transition = '';
+    buzz(20);
 
-const neon = (color, radius = 18, opacity = 0.8) => ({
-  shadowColor: color,
-  shadowOpacity: opacity,
-  shadowRadius: radius,
-  shadowOffset: { width: 0, height: 0 },
-  elevation: 10,
-});
+    // Haptics dheere dheere tez hote hain
+    scan.buzz = setInterval(() => {
+      const e = performance.now() - scan.t0;
+      buzz(e < 1200 ? 10 : e < 2300 ? 22 : 45);
+    }, 170);
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: C.bgTop },
-  hidden: { display: 'none' },
+    const frame = (now) => {
+      if (scan.phase !== 'scanning') return;
+      const p = Math.min(1, (now - scan.t0) / SCAN_MS);
+      fillBar.style.transform = `scaleX(${p})`;
+      pctEl.textContent = `${Math.round(p * 100)}%`;
+      if (p >= 1) { finishScan(); return; }
+      scan.raf = requestAnimationFrame(frame);
+    };
+    scan.raf = requestAnimationFrame(frame);
+  }
 
-  // header
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
-  logoGlow: { marginRight: 12, borderRadius: 15, backgroundColor: C.pink, ...neon(C.pink, 14, 0.9) },
-  logo: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  appName: {
-    color: C.text,
-    fontSize: 25,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    textShadowColor: C.pink,
-    textShadowRadius: 14,
-    textShadowOffset: { width: 0, height: 0 },
-  },
-  appSub: { color: C.hotPink, fontSize: 14, fontWeight: '700', marginTop: 1 },
+  function cancelScan() {
+    stopScanLoop();
+    scan.phase = 'idle';
+    padsEl.classList.remove('scanning');
+    fillBar.style.transition = 'transform 0.25s ease';
+    fillBar.style.transform = 'scaleX(0)';
+    pctEl.textContent = '';
+    buzz(0);
+  }
 
-  // screens
-  screenTitle: { color: C.text, fontSize: 26, fontWeight: '800', marginTop: 8 },
-  screenSub: { color: C.muted, fontSize: 14, marginTop: 4, marginBottom: 18 },
+  function finishScan() {
+    stopScanLoop();
+    scan.phase = 'result';
+    padsEl.classList.remove('scanning');
+    pads.you.clear();
+    pads.partner.clear();
+    buzz([60, 40, 120]);
 
-  // cards
-  card: {
-    backgroundColor: C.card,
-    borderColor: C.cardBorder,
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-  },
+    $('#fingerScan').hidden = true;
+    showResult($('#fingerResult'), {
+      score: 38 + Math.floor(Math.random() * 63), // 38..100
+      heading: 'Tum & Partner',
+      resetLabel: 'Scan again',
+      onReset: resetScan,
+    });
+  }
 
-  // inputs
-  inputLabel: { color: C.muted, fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(10,0,25,0.45)',
-    borderColor: 'rgba(255,255,255,0.14)',
-    borderWidth: 1.5,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    height: 54,
-  },
-  inputWrapFocused: { borderColor: C.pink, backgroundColor: 'rgba(255,61,154,0.08)', ...neon(C.pink, 10, 0.6) },
-  input: { flex: 1, color: C.text, fontSize: 17, marginLeft: 10, paddingVertical: 0 },
-  heartDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 14 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.12)' },
-  heartBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.pink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 12,
-    ...neon(C.pink, 10, 0.9),
-  },
-  error: { color: C.danger, fontSize: 14, marginTop: 12, marginLeft: 4 },
+  function resetScan() {
+    scan.phase = 'idle';
+    fillBar.style.transition = '';
+    fillBar.style.transform = 'scaleX(0)';
+    pctEl.textContent = '';
+    $('#fingerResult').hidden = true;
+    $('#fingerScan').hidden = false;
+    updateHint();
+  }
 
-  // buttons
-  btnGlow: { borderRadius: 18, backgroundColor: C.pink, ...neon(C.pink, 20, 0.7), shadowOffset: { width: 0, height: 6 } },
-  btn: { height: 58, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
-  ghostBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 14,
-    paddingHorizontal: 16,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,123,200,0.45)',
-  },
-  ghostBtnText: { color: C.hotPink, fontSize: 14, fontWeight: '700' },
+  /* ------------------------------------------------------------------ */
+  /*  Quotes & tips                                                     */
+  /* ------------------------------------------------------------------ */
+  const quoteEl = $('#quote');
+  let qi = Math.floor(Date.now() / 86400000) % LOVE_LINES.length; // roz ki pehli line
 
-  // loader
-  loaderCard: { alignItems: 'center', paddingVertical: 28 },
-  loaderText: { color: C.text, fontSize: 16, fontWeight: '600', marginTop: 18, textAlign: 'center' },
-  neonIcon: { textShadowColor: C.pink, textShadowRadius: 16, textShadowOffset: { width: 0, height: 0 } },
+  function drawQuote() {
+    const item = LOVE_LINES[qi];
+    $('#qKind').textContent = item.kind;
+    $('#qText').textContent = item.text;
+    $('#qIcon use').setAttribute('href', item.kind === 'Relationship tip' ? '#i-bulb' : '#i-chat');
+  }
 
-  // result
-  resultCard: { alignItems: 'center', paddingVertical: 24 },
-  resultHeading: { color: C.muted, fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  percent: {
-    color: '#fff',
-    fontSize: 46,
-    fontWeight: '900',
-    marginTop: 8,
-    textShadowColor: 'rgba(80,0,60,0.6)',
-    textShadowRadius: 10,
-    textShadowOffset: { width: 0, height: 2 },
-  },
-  tierTitle: {
-    color: C.text,
-    fontSize: 26,
-    fontWeight: '800',
-    marginTop: 8,
-    textAlign: 'center',
-    textShadowColor: C.pink,
-    textShadowRadius: 12,
-    textShadowOffset: { width: 0, height: 0 },
-  },
-  tierMessage: { color: C.text, fontSize: 16, marginTop: 6, textAlign: 'center', lineHeight: 23 },
-  adviceBox: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,61,154,0.10)',
-    borderColor: 'rgba(255,123,200,0.30)',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
-    marginTop: 16,
-    alignSelf: 'stretch',
-  },
-  adviceText: { flex: 1, color: C.text, fontSize: 15, lineHeight: 22, marginLeft: 10 },
+  $('#nextQuote').addEventListener('click', () => {
+    buzz(8);
+    quoteEl.classList.add('fading');
+    setTimeout(() => {
+      let n = qi;
+      while (n === qi) n = Math.floor(Math.random() * LOVE_LINES.length);
+      qi = n;
+      drawQuote();
+      quoteEl.classList.remove('fading');
+    }, reduceMotion ? 0 : 160);
+  });
 
-  // fingerprint
-  padRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 6 },
-  padOuter: {
-    backgroundColor: '#1B0838',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  padOuterActive: { borderColor: C.pink, ...neon(C.pink, 24, 0.95) },
-  padInner: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  ripple: { ...StyleSheet.absoluteFillObject, borderWidth: 2, borderColor: C.pink },
-  scanLine: { position: 'absolute', top: 0, left: '8%', right: '8%', height: 4, ...neon(C.hotPink, 8, 1) },
-  padLabel: { color: C.text, fontSize: 17, fontWeight: '800', marginTop: 14 },
-  padStatus: { color: C.muted, fontSize: 13, marginTop: 2 },
-  scanStatus: { marginTop: 26 },
-  track: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden' },
-  fillWrap: { height: '100%', borderRadius: 6, overflow: 'hidden' },
-  hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  hint: { flex: 1, color: C.muted, fontSize: 14, lineHeight: 20 },
-  pct: { color: C.hotPink, fontSize: 16, fontWeight: '800', marginLeft: 12 },
-
-  // quote card
-  quoteKindRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  quoteKind: { color: C.hotPink, fontSize: 14, fontWeight: '700', marginLeft: 8 },
-  quoteText: { color: C.text, fontSize: 18, lineHeight: 27, fontWeight: '500' },
-
-  // tab bar
-  tabBar: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    padding: 6,
-    borderRadius: 28,
-    backgroundColor: 'rgba(24,6,50,0.94)',
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    ...neon(C.violet, 16, 0.45),
-  },
-  tabIndicator: {
-    position: 'absolute',
-    left: 6,
-    top: 6,
-    bottom: 6,
-    borderRadius: 22,
-    backgroundColor: C.pink,
-    ...neon(C.pink, 12, 0.8),
-  },
-  tabItem: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  tabLabel: { color: C.muted, fontSize: 15, fontWeight: '700', marginLeft: 8 },
-});
+  drawQuote();
+})();
+</script>
+</body>
+</html>
