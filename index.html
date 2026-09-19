@@ -1,0 +1,1126 @@
+// Love Calculator & Match Meter
+// Expo Snack ready: is poori file ko App.js me paste karo.
+// SDK-neutral: koi version pin nahi hai. Snack me wahi SDK chuno jo tumhare Expo Go se match kare.
+// Dependencies (sab Expo Go ke saath bundled hain):
+//   expo-linear-gradient, expo-haptics, @expo/vector-icons, react-native-safe-area-context
+
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/* -------------------------------------------------------------------------- */
+/*  Theme tokens                                                              */
+/* -------------------------------------------------------------------------- */
+
+const C = {
+  bgTop: '#12032A',
+  bgMid: '#2A0B4D',
+  bgBottom: '#4B0F62',
+  pink: '#FF3D9A',
+  hotPink: '#FF7BC8',
+  violet: '#A855F7',
+  text: '#FCEBFF',
+  muted: '#B9A0D8',
+  card: 'rgba(255,255,255,0.06)',
+  cardBorder: 'rgba(255,255,255,0.14)',
+  danger: '#FF8FB1',
+};
+
+const TABS = [
+  { key: 'name', label: 'Name match', icon: 'heart' },
+  { key: 'finger', label: 'Fingerprint', icon: 'finger-print' },
+];
+
+const SCAN_MS = 3000;
+
+/* -------------------------------------------------------------------------- */
+/*  Content                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const TIERS = [
+  {
+    min: 90,
+    emoji: '💘',
+    title: 'Perfect match!',
+    message: 'Made for each other. Kismat ne pehle hi likh diya tha.',
+    advice: 'Der kis baat ki? Aaj hi dinner plan karo aur dil ki baat bol do.',
+  },
+  {
+    min: 75,
+    emoji: '💞',
+    title: 'Soulmate vibes',
+    message: 'Tumhari chemistry kamaal ki hai.',
+    advice: 'Saath mein kuch naya try karo: nayi jagah, nayi adventure. Yaadein yahin se banti hain.',
+  },
+  {
+    min: 60,
+    emoji: '🔥',
+    title: 'Strong spark',
+    message: 'Spark hai, bas thodi hawa chahiye.',
+    advice: 'Roz ek chhota sa compliment do. Chhoti cheezein hi badi kahani banati hain.',
+  },
+  {
+    min: 45,
+    emoji: '😊',
+    title: 'Good friends',
+    message: 'Dosti ki neev solid hai.',
+    advice: 'Pehle best friends bano, phir dekhna kahani kahan jaati hai. Coffee pe milo!',
+  },
+  {
+    min: 30,
+    emoji: '🌱',
+    title: 'Slow burn',
+    message: 'Waqt lagega, par kuch bura nahi.',
+    advice: 'Ek dusre ko samajhne ka time do. Dhyaan se sunna sabse bada superpower hai.',
+  },
+  {
+    min: 0,
+    emoji: '🌪️',
+    title: 'Opposites attract?',
+    message: 'Numbers kam hain, par pyaar numbers se nahi chalta.',
+    advice: 'Kabhi kabhi opposites hi best jodi banate hain. Dil ki suno, score sirf ek game hai.',
+  },
+];
+
+const getTier = (score) => TIERS.find((t) => score >= t.min) || TIERS[TIERS.length - 1];
+
+const LOVE_LINES = [
+  { kind: 'Love quote', text: 'Pyaar dhoondhne se nahi milta, par jab milta hai to duniya ka rang badal jaata hai.' },
+  { kind: 'Love quote', text: 'Do dilon ka rishta chai jaisa hota hai: thodi mithaas, thodi garmi, aur saath baithne ka mazaa.' },
+  { kind: 'Love quote', text: 'Tumhari muskurahat mera favourite notification hai.' },
+  { kind: 'Love quote', text: 'Sacha pyaar wo hai jahan chup rehna bhi comfortable lage.' },
+  { kind: 'Love quote', text: 'Kisi ko impress karne se zyada zaroori hai, kisi ke saath khud jaisa rehna.' },
+  { kind: 'Love quote', text: 'Dil ki baat kehne ke liye perfect words nahi, bas himmat chahiye.' },
+  { kind: 'Relationship tip', text: 'Din mein ek baar bina wajah "thinking of you" bhejo. Chhoti baat, bada asar.' },
+  { kind: 'Relationship tip', text: 'Phone rakh ke baat suno. Poori tarah present rehna sabse pyara gift hai.' },
+  { kind: 'Relationship tip', text: 'Jhagda ho to problem se ladho, partner se nahi.' },
+  { kind: 'Relationship tip', text: 'Partner ki chhoti jeet ko aise celebrate karo jaise wo tumhari badi jeet ho.' },
+  { kind: 'Relationship tip', text: 'Sorry bolne me sharam mat karo, aur thank you bolne me kanjoosi mat karo.' },
+  { kind: 'Relationship tip', text: 'Har hafte ek no-phone date rakho: sirf tum aur wo.' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function tap(style) {
+  try {
+    Haptics.impactAsync(style || Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  } catch (e) {
+    // haptics unavailable (web preview etc.)
+  }
+}
+
+function notify(type) {
+  try {
+    Haptics.notificationAsync(type || Haptics.NotificationFeedbackType.Success).catch(() => {});
+  } catch (e) {
+    // haptics unavailable
+  }
+}
+
+const cap = (s) => {
+  const t = s.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
+// Same jodi => same score, chahe naam ka order kuch bhi ho.
+function nameScore(a, b) {
+  const clean = (s) => s.trim().toLowerCase().replace(/\s+/g, '');
+  const [x, y] = [clean(a), clean(b)].sort();
+  const str = `${x}<3${y}`;
+  let h = 7;
+  for (let i = 0; i < str.length; i += 1) {
+    h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0;
+  }
+  return 27 + (Math.abs(h) % 73); // 27..99
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Small building blocks                                                     */
+/* -------------------------------------------------------------------------- */
+
+// Soft neon glow: concentric low-opacity circles (no blur dependency needed).
+function Glow({ color, size, style }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[{ position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}
+    >
+      {[1, 0.78, 0.56, 0.36].map((k, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            width: size * k,
+            height: size * k,
+            borderRadius: (size * k) / 2,
+            backgroundColor: color,
+            opacity: 0.06,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function Background() {
+  return (
+    <>
+      <LinearGradient
+        colors={[C.bgTop, C.bgMid, C.bgBottom]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <Glow color={C.pink} size={360} style={{ top: -110, right: -110 }} />
+      <Glow color={C.violet} size={400} style={{ bottom: 20, left: -170 }} />
+    </>
+  );
+}
+
+function Header() {
+  return (
+    <View style={styles.header}>
+      <View style={styles.logoGlow}>
+        <LinearGradient
+          colors={[C.pink, C.violet]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.logo}
+        >
+          <Ionicons name="heart" size={22} color="#fff" />
+        </LinearGradient>
+      </View>
+      <View>
+        <Text style={styles.appName}>Love Calculator</Text>
+        <Text style={styles.appSub}>& Match Meter</Text>
+      </View>
+    </View>
+  );
+}
+
+function NeonButton({ label, icon, onPress, style }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v) =>
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+
+  return (
+    <Animated.View style={[styles.btnGlow, style, { transform: [{ scale }] }]}>
+      <Pressable onPress={onPress} onPressIn={() => to(0.96)} onPressOut={() => to(1)}>
+        <LinearGradient
+          colors={[C.pink, C.violet]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.btn}
+        >
+          {icon ? <Ionicons name={icon} size={22} color="#fff" style={{ marginRight: 8 }} /> : null}
+          <Text style={styles.btnText}>{label}</Text>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function GhostButton({ label, icon, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.ghostBtn, pressed && { opacity: 0.7 }]}>
+      <Ionicons name={icon} size={16} color={C.hotPink} style={{ marginRight: 6 }} />
+      <Text style={styles.ghostBtnText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function NeonInput({ label, icon, value, onChangeText, placeholder, inputRef, returnKeyType, onSubmitEditing }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+        <Ionicons name={icon} size={20} color={focused ? C.hotPink : C.muted} />
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#8B6FB0"
+          selectionColor={C.pink}
+          autoCapitalize="words"
+          autoCorrect={false}
+          maxLength={24}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={styles.input}
+        />
+      </View>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Loader                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const LOADING_LINES = [
+  'Naamon ko stars se match kar rahe hain…',
+  'Dil ki dhadkan gin rahe hain…',
+  'Chemistry check ho rahi hai…',
+  'Bas aakhri calculation…',
+];
+
+function HeartLoader() {
+  const spin = useRef(new Animated.Value(0)).current;
+  const beat = useRef(new Animated.Value(0)).current;
+  const [line, setLine] = useState(0);
+
+  useEffect(() => {
+    const spinLoop = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 2200, easing: Easing.linear, useNativeDriver: true })
+    );
+    const beatLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(beat, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(beat, { toValue: 0, duration: 420, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    spinLoop.start();
+    beatLoop.start();
+    const iv = setInterval(() => setLine((l) => (l + 1) % LOADING_LINES.length), 800);
+    return () => {
+      spinLoop.stop();
+      beatLoop.stop();
+      clearInterval(iv);
+    };
+  }, []);
+
+  const BOX = 150;
+  const R = 58;
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const scale = beat.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] });
+  const orbiters = [0, 1, 2, 3, 4].map((i) => {
+    const ang = (i / 5) * 2 * Math.PI;
+    return { left: BOX / 2 + R * Math.sin(ang) - 8, top: BOX / 2 - R * Math.cos(ang) - 8 };
+  });
+
+  return (
+    <View style={[styles.card, styles.loaderCard]}>
+      <View style={{ width: BOX, height: BOX, alignItems: 'center', justifyContent: 'center' }}>
+        <Glow color={C.pink} size={BOX * 1.5} />
+        <Animated.View
+          style={{ position: 'absolute', width: BOX, height: BOX, transform: [{ rotate }] }}
+        >
+          {orbiters.map((o, i) => (
+            <Ionicons
+              key={i}
+              name="heart"
+              size={16}
+              color={i % 2 ? C.violet : C.hotPink}
+              style={{ position: 'absolute', left: o.left, top: o.top }}
+            />
+          ))}
+        </Animated.View>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Ionicons name="heart" size={66} color={C.pink} style={styles.neonIcon} />
+        </Animated.View>
+      </View>
+      <Text style={styles.loaderText}>{LOADING_LINES[line]}</Text>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Result card (shared by both modes)                                        */
+/* -------------------------------------------------------------------------- */
+
+function ResultCard({ score, heading, resetLabel, onReset }) {
+  const tier = getTier(score);
+  const progress = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState(0);
+  const H = 168;
+
+  useEffect(() => {
+    const id = progress.addListener(({ value }) => setShown(Math.round(value)));
+    Animated.parallel([
+      Animated.timing(progress, {
+        toValue: score,
+        duration: 1600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.spring(pop, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }),
+    ]).start();
+    return () => {
+      progress.removeListener(id);
+      progress.stopAnimation();
+    };
+  }, []);
+
+  const fillHeight = progress.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, H],
+    extrapolate: 'clamp',
+  });
+  const cardScale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
+
+  return (
+    <Animated.View style={[styles.card, styles.resultCard, { opacity: pop, transform: [{ scale: cardScale }] }]}>
+      {heading ? <Text style={styles.resultHeading}>{heading}</Text> : null}
+
+      {/* Heart that fills up with the score */}
+      <View style={{ width: H, height: H, alignItems: 'center', justifyContent: 'center', marginVertical: 8 }}>
+        <Glow color={C.pink} size={H * 1.7} />
+        <Ionicons name="heart" size={H} color="rgba(255,255,255,0.09)" style={{ position: 'absolute' }} />
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: fillHeight,
+            overflow: 'hidden',
+            alignItems: 'center',
+          }}
+        >
+          <Ionicons name="heart" size={H} color={C.pink} style={{ position: 'absolute', bottom: 0 }} />
+        </Animated.View>
+        <Text style={styles.percent}>{shown}%</Text>
+      </View>
+
+      <Text style={styles.tierTitle}>
+        {tier.emoji} {tier.title}
+      </Text>
+      <Text style={styles.tierMessage}>{tier.message}</Text>
+
+      <View style={styles.adviceBox}>
+        <Ionicons name="sparkles" size={18} color={C.hotPink} style={{ marginTop: 2 }} />
+        <Text style={styles.adviceText}>{tier.advice}</Text>
+      </View>
+
+      <GhostButton label={resetLabel} icon="refresh" onPress={onReset} />
+    </Animated.View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Mode 1: Name match                                                        */
+/* -------------------------------------------------------------------------- */
+
+function NameMatchScreen() {
+  const [a, setA] = useState('');
+  const [b, setB] = useState('');
+  const [phase, setPhase] = useState('idle'); // idle | loading | result
+  const [score, setScore] = useState(0);
+  const [error, setError] = useState('');
+  const shake = useRef(new Animated.Value(0)).current;
+  const timer = useRef(null);
+  const secondRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const runShake = () =>
+    Animated.sequence(
+      [10, -10, 8, -8, 0].map((v) => Animated.timing(shake, { toValue: v, duration: 60, useNativeDriver: true }))
+    ).start();
+
+  const calculate = () => {
+    Keyboard.dismiss();
+    if (!a.trim() || !b.trim()) {
+      setError('Dono naam likho, tabhi match hoga.');
+      runShake();
+      notify(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
+    setError('');
+    setPhase('loading');
+    tap(Haptics.ImpactFeedbackStyle.Medium);
+    timer.current = setTimeout(() => {
+      setScore(nameScore(a, b));
+      setPhase('result');
+      notify(Haptics.NotificationFeedbackType.Success);
+    }, 2400);
+  };
+
+  const reset = () => {
+    setA('');
+    setB('');
+    setError('');
+    setPhase('idle');
+  };
+
+  return (
+    <View>
+      <Text style={styles.screenTitle}>Naam se match</Text>
+      <Text style={styles.screenSub}>Dono naam likho, baaki kaam stars ka.</Text>
+
+      {phase === 'idle' && (
+        <>
+          <Animated.View style={[styles.card, { transform: [{ translateX: shake }] }]}>
+            <NeonInput
+              label="Tumhara naam"
+              icon="person-outline"
+              placeholder="e.g. Aisha"
+              value={a}
+              onChangeText={(t) => {
+                setA(t);
+                if (error) setError('');
+              }}
+              returnKeyType="next"
+              onSubmitEditing={() => secondRef.current && secondRef.current.focus()}
+            />
+            <View style={styles.heartDivider}>
+              <View style={styles.dividerLine} />
+              <View style={styles.heartBadge}>
+                <Ionicons name="heart" size={14} color="#fff" />
+              </View>
+              <View style={styles.dividerLine} />
+            </View>
+            <NeonInput
+              label="Partner / crush ka naam"
+              icon="heart-outline"
+              placeholder="e.g. Rohan"
+              value={b}
+              inputRef={secondRef}
+              onChangeText={(t) => {
+                setB(t);
+                if (error) setError('');
+              }}
+              returnKeyType="done"
+              onSubmitEditing={calculate}
+            />
+          </Animated.View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <NeonButton label="Calculate match" icon="heart-circle" onPress={calculate} style={{ marginTop: 18 }} />
+        </>
+      )}
+
+      {phase === 'loading' && <HeartLoader />}
+
+      {phase === 'result' && (
+        <ResultCard
+          key={`${a}-${b}`}
+          score={score}
+          heading={`${cap(a)}  💗  ${cap(b)}`}
+          resetLabel="Try another pair"
+          onReset={reset}
+        />
+      )}
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Mode 2: Fingerprint match                                                 */
+/* -------------------------------------------------------------------------- */
+
+function FingerPad({ label, size, down, scanning, onDown, onUp }) {
+  const count = useRef(0);
+  const glow = useRef(new Animated.Value(0)).current;
+  const ripple = useRef(new Animated.Value(0)).current;
+  const scan = useRef(new Animated.Value(0)).current;
+
+  // Finger down: glow + expanding neon ripple
+  useEffect(() => {
+    Animated.spring(glow, { toValue: down ? 1 : 0, useNativeDriver: true, friction: 6, tension: 90 }).start();
+    if (!down) {
+      ripple.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.timing(ripple, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [down]);
+
+  // Both fingers down: scan line sweeps up and down
+  useEffect(() => {
+    if (!scanning) {
+      scan.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scan, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scanning]);
+
+  // Raw touch events => dono pads par ek saath ungli rakh sakte ho (multi-touch)
+  const handleStart = () => {
+    count.current += 1;
+    if (count.current === 1) onDown();
+  };
+  const handleEnd = () => {
+    count.current = Math.max(0, count.current - 1);
+    if (count.current === 0) onUp();
+  };
+
+  const padScale = glow.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
+  const rippleScale = ripple.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] });
+  const rippleOpacity = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+  const lineY = scan.interpolate({ inputRange: [0, 1], outputRange: [0, size - 4] });
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Animated.View style={{ transform: [{ scale: padScale }] }}>
+        <View
+          onTouchStart={handleStart}
+          onTouchEnd={handleEnd}
+          onTouchCancel={handleEnd}
+          style={[
+            styles.padOuter,
+            { width: size, height: size, borderRadius: size / 2 },
+            down && styles.padOuterActive,
+          ]}
+        >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.ripple,
+              { borderRadius: size / 2, opacity: down ? rippleOpacity : 0, transform: [{ scale: rippleScale }] },
+            ]}
+          />
+          <View pointerEvents="none" style={[styles.padInner, { borderRadius: size / 2 }]}>
+            <View
+              style={{
+                position: 'absolute',
+                width: size * 0.8,
+                height: size * 0.8,
+                borderRadius: size * 0.4,
+                borderWidth: 1,
+                borderColor: down ? 'rgba(255,123,200,0.5)' : 'rgba(255,255,255,0.08)',
+              }}
+            />
+            <Ionicons
+              name="finger-print"
+              size={size * 0.56}
+              color={down ? '#fff' : C.muted}
+              style={down ? styles.neonIcon : null}
+            />
+            {scanning ? (
+              <Animated.View style={[styles.scanLine, { transform: [{ translateY: lineY }] }]}>
+                <LinearGradient
+                  colors={['rgba(255,61,154,0)', '#FF7BC8', 'rgba(255,61,154,0)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            ) : null}
+          </View>
+        </View>
+      </Animated.View>
+      <Text style={styles.padLabel}>{label}</Text>
+      <Text style={[styles.padStatus, down && { color: C.hotPink }]}>{down ? 'Ungli mil gayi' : 'Ungli rakho'}</Text>
+    </View>
+  );
+}
+
+function FingerprintScreen({ onLockChange }) {
+  const { width } = useWindowDimensions();
+  const size = Math.min(160, Math.floor((width - 40 - 18) / 2));
+  const [left, setLeft] = useState(false);
+  const [right, setRight] = useState(false);
+  const [phase, setPhase] = useState('idle'); // idle | scanning | result
+  const [score, setScore] = useState(0);
+  const [pct, setPct] = useState(0);
+  const [runId, setRunId] = useState(0);
+  const phaseRef = useRef('idle');
+  const progress = useRef(new Animated.Value(0)).current;
+
+  const go = (p) => {
+    phaseRef.current = p;
+    setPhase(p);
+  };
+
+  useEffect(() => {
+    const id = progress.addListener(({ value }) => setPct(Math.round(value * 100)));
+    return () => progress.removeListener(id);
+  }, []);
+
+  // Jab tak ungli pad par hai, parent ScrollView ko lock rakho
+  useEffect(() => {
+    onLockChange(left || right);
+  }, [left, right]);
+  useEffect(() => () => onLockChange(false), []);
+
+  useEffect(() => {
+    if (phaseRef.current === 'result') return undefined;
+
+    if (!(left && right)) {
+      if (phaseRef.current === 'scanning') {
+        go('idle');
+        Animated.timing(progress, { toValue: 0, duration: 250, useNativeDriver: false }).start();
+      }
+      return undefined;
+    }
+
+    go('scanning');
+    progress.setValue(0);
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const e = Date.now() - t0;
+      tap(
+        e < 1200
+          ? Haptics.ImpactFeedbackStyle.Light
+          : e < 2300
+          ? Haptics.ImpactFeedbackStyle.Medium
+          : Haptics.ImpactFeedbackStyle.Heavy
+      );
+    }, 170);
+    const anim = Animated.timing(progress, {
+      toValue: 1,
+      duration: SCAN_MS,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
+    anim.start(({ finished }) => {
+      if (!finished) return;
+      clearInterval(iv);
+      setScore(38 + Math.floor(Math.random() * 63)); // 38..100
+      setRunId((n) => n + 1);
+      go('result');
+      setLeft(false);
+      setRight(false);
+      notify(Haptics.NotificationFeedbackType.Success);
+    });
+    return () => {
+      anim.stop();
+      clearInterval(iv);
+    };
+  }, [left, right]);
+
+  const reset = () => {
+    progress.setValue(0);
+    setPct(0);
+    go('idle');
+  };
+
+  const barWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const hint =
+    phase === 'scanning'
+      ? 'Scanning… ungli mat hatana!'
+      : left || right
+      ? 'Ab dusri ungli bhi rakho.'
+      : 'Dono ungli apne-apne pad par rakho aur hold karo.';
+
+  return (
+    <View>
+      <Text style={styles.screenTitle}>Fingerprint match</Text>
+      <Text style={styles.screenSub}>Tum aur partner, ek saath ungli rakho.</Text>
+
+      {phase !== 'result' ? (
+        <>
+          <View style={styles.padRow}>
+            <FingerPad
+              label="Tum"
+              size={size}
+              down={left}
+              scanning={phase === 'scanning'}
+              onDown={() => {
+                setLeft(true);
+                tap(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              onUp={() => setLeft(false)}
+            />
+            <FingerPad
+              label="Partner"
+              size={size}
+              down={right}
+              scanning={phase === 'scanning'}
+              onDown={() => {
+                setRight(true);
+                tap(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              onUp={() => setRight(false)}
+            />
+          </View>
+
+          <View style={styles.scanStatus}>
+            <View style={styles.track}>
+              <Animated.View style={[styles.fillWrap, { width: barWidth }]}>
+                <LinearGradient
+                  colors={[C.pink, C.violet]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            </View>
+            <View style={styles.hintRow}>
+              <Text style={styles.hint}>{hint}</Text>
+              {phase === 'scanning' ? <Text style={styles.pct}>{pct}%</Text> : null}
+            </View>
+          </View>
+        </>
+      ) : (
+        <ResultCard
+          key={runId}
+          score={score}
+          heading="Tum & Partner"
+          resetLabel="Scan again"
+          onReset={reset}
+        />
+      )}
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Quotes & tips                                                             */
+/* -------------------------------------------------------------------------- */
+
+function QuoteCard() {
+  // Roz ki pehli line din ke hisaab se badalti hai; button se aur line lo.
+  const [idx, setIdx] = useState(() => Math.floor(Date.now() / 86400000) % LOVE_LINES.length);
+  const fade = useRef(new Animated.Value(1)).current;
+
+  const next = () => {
+    tap(Haptics.ImpactFeedbackStyle.Light);
+    Animated.timing(fade, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
+      setIdx((cur) => {
+        let n = cur;
+        while (n === cur) n = Math.floor(Math.random() * LOVE_LINES.length);
+        return n;
+      });
+      Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }).start();
+    });
+  };
+
+  const item = LOVE_LINES[idx];
+  const isTip = item.kind === 'Relationship tip';
+
+  return (
+    <View style={[styles.card, { marginTop: 26 }]}>
+      <Animated.View style={{ opacity: fade }}>
+        <View style={styles.quoteKindRow}>
+          <Ionicons name={isTip ? 'bulb' : 'chatbubble-ellipses'} size={18} color={C.hotPink} />
+          <Text style={styles.quoteKind}>{item.kind}</Text>
+        </View>
+        <Text style={styles.quoteText}>{item.text}</Text>
+      </Animated.View>
+      <View style={{ alignItems: 'flex-start', marginTop: 4 }}>
+        <GhostButton label="Next one" icon="refresh" onPress={next} />
+      </View>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Bottom tab bar                                                            */
+/* -------------------------------------------------------------------------- */
+
+function TabBar({ tab, onChange, bottom }) {
+  const [w, setW] = useState(0);
+  const x = useRef(new Animated.Value(0)).current;
+  const pad = 6;
+  const tabW = w > 0 ? (w - pad * 2) / TABS.length : 0;
+
+  useEffect(() => {
+    Animated.spring(x, { toValue: tab * tabW, useNativeDriver: true, friction: 9, tension: 90 }).start();
+  }, [tab, tabW]);
+
+  return (
+    <View style={[styles.tabBar, { bottom }]} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {tabW > 0 && (
+        <Animated.View style={[styles.tabIndicator, { width: tabW, transform: [{ translateX: x }] }]}>
+          <LinearGradient
+            colors={[C.pink, C.violet]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flex: 1, borderRadius: 22 }}
+          />
+        </Animated.View>
+      )}
+      {TABS.map((t, i) => (
+        <Pressable key={t.key} style={styles.tabItem} onPress={() => onChange(i)}>
+          <Ionicons name={t.icon} size={20} color={tab === i ? '#fff' : C.muted} />
+          <Text style={[styles.tabLabel, tab === i && { color: '#fff' }]}>{t.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  App shell                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function Main() {
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState(0);
+  const [locked, setLocked] = useState(false);
+  const [kbOpen, setKbOpen] = useState(false);
+  const fade = useRef(new Animated.Value(1)).current;
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKbOpen(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  const changeTab = (i) => {
+    if (i === tab) return;
+    tap(Haptics.ImpactFeedbackStyle.Light);
+    Keyboard.dismiss();
+    setTab(i);
+    if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: false });
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+  };
+
+  const tabBottom = Math.max(insets.bottom, 12);
+
+  return (
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" />
+      <Background />
+
+      <View style={{ paddingTop: insets.top + 10 }}>
+        <Header />
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView
+          ref={scrollRef}
+          scrollEnabled={!locked}
+          keyboardShouldPersistTaps="handled"
+          delaysContentTouches={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: tabBottom + 110 }}
+        >
+          <Animated.View style={{ opacity: fade }}>
+            <View style={tab === 0 ? null : styles.hidden}>
+              <NameMatchScreen />
+            </View>
+            <View style={tab === 1 ? null : styles.hidden}>
+              <FingerprintScreen onLockChange={setLocked} />
+            </View>
+            <QuoteCard />
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {!kbOpen && <TabBar tab={tab} onChange={changeTab} bottom={tabBottom} />}
+    </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <Main />
+    </SafeAreaProvider>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Styles                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const neon = (color, radius = 18, opacity = 0.8) => ({
+  shadowColor: color,
+  shadowOpacity: opacity,
+  shadowRadius: radius,
+  shadowOffset: { width: 0, height: 0 },
+  elevation: 10,
+});
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bgTop },
+  hidden: { display: 'none' },
+
+  // header
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10 },
+  logoGlow: { marginRight: 12, borderRadius: 15, backgroundColor: C.pink, ...neon(C.pink, 14, 0.9) },
+  logo: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  appName: {
+    color: C.text,
+    fontSize: 25,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textShadowColor: C.pink,
+    textShadowRadius: 14,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  appSub: { color: C.hotPink, fontSize: 14, fontWeight: '700', marginTop: 1 },
+
+  // screens
+  screenTitle: { color: C.text, fontSize: 26, fontWeight: '800', marginTop: 8 },
+  screenSub: { color: C.muted, fontSize: 14, marginTop: 4, marginBottom: 18 },
+
+  // cards
+  card: {
+    backgroundColor: C.card,
+    borderColor: C.cardBorder,
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 18,
+  },
+
+  // inputs
+  inputLabel: { color: C.muted, fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10,0,25,0.45)',
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    height: 54,
+  },
+  inputWrapFocused: { borderColor: C.pink, backgroundColor: 'rgba(255,61,154,0.08)', ...neon(C.pink, 10, 0.6) },
+  input: { flex: 1, color: C.text, fontSize: 17, marginLeft: 10, paddingVertical: 0 },
+  heartDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 14 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.12)' },
+  heartBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.pink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
+    ...neon(C.pink, 10, 0.9),
+  },
+  error: { color: C.danger, fontSize: 14, marginTop: 12, marginLeft: 4 },
+
+  // buttons
+  btnGlow: { borderRadius: 18, backgroundColor: C.pink, ...neon(C.pink, 20, 0.7), shadowOffset: { width: 0, height: 6 } },
+  btn: { height: 58, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 0.3 },
+  ghostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,123,200,0.45)',
+  },
+  ghostBtnText: { color: C.hotPink, fontSize: 14, fontWeight: '700' },
+
+  // loader
+  loaderCard: { alignItems: 'center', paddingVertical: 28 },
+  loaderText: { color: C.text, fontSize: 16, fontWeight: '600', marginTop: 18, textAlign: 'center' },
+  neonIcon: { textShadowColor: C.pink, textShadowRadius: 16, textShadowOffset: { width: 0, height: 0 } },
+
+  // result
+  resultCard: { alignItems: 'center', paddingVertical: 24 },
+  resultHeading: { color: C.muted, fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  percent: {
+    color: '#fff',
+    fontSize: 46,
+    fontWeight: '900',
+    marginTop: 8,
+    textShadowColor: 'rgba(80,0,60,0.6)',
+    textShadowRadius: 10,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  tierTitle: {
+    color: C.text,
+    fontSize: 26,
+    fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
+    textShadowColor: C.pink,
+    textShadowRadius: 12,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  tierMessage: { color: C.text, fontSize: 16, marginTop: 6, textAlign: 'center', lineHeight: 23 },
+  adviceBox: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,61,154,0.10)',
+    borderColor: 'rgba(255,123,200,0.30)',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 16,
+    alignSelf: 'stretch',
+  },
+  adviceText: { flex: 1, color: C.text, fontSize: 15, lineHeight: 22, marginLeft: 10 },
+
+  // fingerprint
+  padRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 6 },
+  padOuter: {
+    backgroundColor: '#1B0838',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  padOuterActive: { borderColor: C.pink, ...neon(C.pink, 24, 0.95) },
+  padInner: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  ripple: { ...StyleSheet.absoluteFillObject, borderWidth: 2, borderColor: C.pink },
+  scanLine: { position: 'absolute', top: 0, left: '8%', right: '8%', height: 4, ...neon(C.hotPink, 8, 1) },
+  padLabel: { color: C.text, fontSize: 17, fontWeight: '800', marginTop: 14 },
+  padStatus: { color: C.muted, fontSize: 13, marginTop: 2 },
+  scanStatus: { marginTop: 26 },
+  track: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden' },
+  fillWrap: { height: '100%', borderRadius: 6, overflow: 'hidden' },
+  hintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  hint: { flex: 1, color: C.muted, fontSize: 14, lineHeight: 20 },
+  pct: { color: C.hotPink, fontSize: 16, fontWeight: '800', marginLeft: 12 },
+
+  // quote card
+  quoteKindRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  quoteKind: { color: C.hotPink, fontSize: 14, fontWeight: '700', marginLeft: 8 },
+  quoteText: { color: C.text, fontSize: 18, lineHeight: 27, fontWeight: '500' },
+
+  // tab bar
+  tabBar: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    padding: 6,
+    borderRadius: 28,
+    backgroundColor: 'rgba(24,6,50,0.94)',
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    ...neon(C.violet, 16, 0.45),
+  },
+  tabIndicator: {
+    position: 'absolute',
+    left: 6,
+    top: 6,
+    bottom: 6,
+    borderRadius: 22,
+    backgroundColor: C.pink,
+    ...neon(C.pink, 12, 0.8),
+  },
+  tabItem: { flex: 1, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  tabLabel: { color: C.muted, fontSize: 15, fontWeight: '700', marginLeft: 8 },
+});
